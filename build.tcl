@@ -126,6 +126,20 @@ set_option -ireg_in_iob 1
 set_option -oreg_in_iob 1
 set_option -ioreg_in_iob 1
 
-set_option -place_option 2
+# Placement and routing algorithms, chosen for timing (as in fpga_game_consoles). The HDMI
+# encoder path (74.25 MHz) has little margin, so which combination passes depends on the
+# build: Gowin 1.9.11.03 accepts place 0-2 and route 0-2. RF_PLACE and RF_ROUTE override
+# them. Small design changes move placement, so check the HDMI clock after each.
+set place_option 2
+set route_option 0
+if {$dev eq "console60k"} {
+    # fpga_game_consoles' USB-only SNES value: 74.33 MHz (2026-11-02); 2/0 reached 72.80,
+    # 0/2 72.23
+    set route_option 2
+}
+if {[info exists ::env(RF_PLACE)]} { set place_option $::env(RF_PLACE) }
+if {[info exists ::env(RF_ROUTE)]} { set route_option $::env(RF_ROUTE) }
+set_option -place_option $place_option
+set_option -route_option $route_option
 
 run all
