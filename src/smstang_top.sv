@@ -106,6 +106,7 @@ reg ce_snd;
 reg ce_vdp;
 reg ce_sp;
 reg [4:0] clkd;
+reg paused = 0;             // menu shown: hold the system (see below)
 always @(posedge clk_sys) begin
 
 	ce_sp <= clkd[0];
@@ -131,6 +132,13 @@ always @(posedge clk_sys) begin
 		ce_pix <= 1;
 	end else if (clkd==4) begin
 		ce_vdp <= 1;
+	end
+	if (paused) begin			// hold every clock enable at the start of a period
+		clkd <= clkd;
+		ce_sp <= 0;
+		ce_vdp <= 0;
+		ce_pix <= 0;
+		ce_cpu <= 0;
 	end
 end
 
@@ -332,6 +340,14 @@ dpram #(.widthad_a(15)) nvram_inst
 `ifndef VERILATOR
 
 wire overlay;
+
+// Pause the game while the menu is shown. The pause starts at the end of a divider period
+// (clkd back to 0) and can end at any time while clkd is held there. Not in reset, which
+// needs the clock enables to take effect (power-up and loading).
+always @(posedge clk_sys)
+	if (paused | clkd == 29)
+		paused <= overlay & ~reset;
+
 wire [7:0] overlay_x;
 wire [7:0] overlay_y;
 wire [14:0] overlay_color;
