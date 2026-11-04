@@ -106,10 +106,10 @@ end
 //
 // Video
 // Scale SMS image from 256x192 to 960x720
-// Scale overlay image from 256x224 to 960x720
+// Menu: textdisp's 256x224 at 3x in a 768x672 window, as in common/video/video_out.v
 //
 localparam WIDTH=256;
-localparam HEIGHT=224;
+localparam HEIGHT=192;
 reg [23:0] rgb;             // actual RGB output
 reg active                  ;
 reg [$clog2(WIDTH)-1:0] xx  ; // scaled-down pixel position
@@ -118,8 +118,6 @@ reg [10:0] xcnt             ;
 reg [10:0] ycnt             ;                  // fractional scaling counters
 reg [9:0] cy_r;
 assign mem_portB_addr = yy * WIDTH + xx;
-assign overlay_x = xx;
-assign overlay_y = yy;
 localparam XSTART = (1280 - 960) / 2;   // 960:720 = 4:3
 localparam XSTOP = (1280 + 960) / 2;
 
@@ -131,7 +129,7 @@ always @(posedge clk_pixel) begin
     reg [10:0] xcnt_next;
     reg [10:0] ycnt_next;
     xcnt_next = xcnt + 256;
-    ycnt_next = ycnt + (overlay ? 224 : 192);
+    ycnt_next = ycnt + 192;
 
     active_t = 0;
     if (cx == XSTART - 1) begin
@@ -171,16 +169,66 @@ always @(posedge clk_pixel) begin
 
 end
 
-// calc rgb value to hdmi
-reg [23:0] NES_PALETTE [0:63];
+//
+// Menu window, the same pixels as video_out.v. textdisp returns the color of (overlay_x,
+// overlay_y) 2 cycles later and needs at least 3 cycles per x step. The position counter
+// works on pixel hpos = cx + LAT; rgb, which the HDMI encoder reads, is stage 6.
+//
+localparam LAT = 6;
+localparam [10:0] LINE_EVT = 11'd1290;  // next line's overlay_y is set here, in horizontal blanking
+localparam [10:0] MENU_X0 = 11'd256;    // window left edge
+localparam [9:0]  MENU_Y0 = 10'd24;     // window top edge
+
+wire [10:0] hpos = cx + LAT;
+wire [9:0] next_line = cy == 10'd749 ? 10'd0 : cy + 10'd1;
+reg [7:0] mx, my;
+reg [1:0] mx_ph, my_ph;
+assign overlay_x = mx;
+assign overlay_y = my;
 always @(posedge clk_pixel) begin
-    if (active) begin
-        if (overlay)
-            rgb <= {overlay_color[4:0],3'b0,overlay_color[9:5],3'b0,overlay_color[14:10],3'b0};       // BGR5 to RGB8
-        else
-            rgb <= {mem_portB_rdata[3:0], 4'b0, mem_portB_rdata[7:4], 4'b0, mem_portB_rdata[11:8], 4'b0}; // BGR4 to RGB8
+    if (hpos == MENU_X0 - 11'd1) begin
+        mx <= 8'd255;
+        mx_ph <= 0;
+    end else if (mx_ph == 2'd2) begin
+        mx <= mx + 8'd1;
+        mx_ph <= 0;
     end else
-        rgb <= 24'h303030;
+        mx_ph <= mx_ph + 2'd1;
+
+    if (cx == LINE_EVT) begin
+        if (next_line == MENU_Y0) begin
+            my <= 0;
+            my_ph <= 0;
+        end else if (my_ph == 2'd2) begin
+            my <= my + 8'd1;
+            my_ph <= 0;
+        end else
+            my_ph <= my_ph + 2'd1;
+    end
+end
+
+wire menu_win0 = hpos >= MENU_X0 && hpos < MENU_X0 + 11'd768 &&
+                 cy >= MENU_Y0 && cy < MENU_Y0 + 10'd672;
+reg [4:0] menu_win_d;
+always @(posedge clk_pixel)
+    menu_win_d <= {menu_win_d[3:0], menu_win0};
+wire menu_win5 = menu_win_d[4];
+
+// BGR5 to RGB888, low bits repeated so that 31 becomes 255
+wire [23:0] menu_rgb = {overlay_color[4:0],   overlay_color[4:2],
+                        overlay_color[9:5],   overlay_color[9:7],
+                        overlay_color[14:10], overlay_color[14:12]};
+
+// calc rgb value to hdmi: the menu over the game dimmed to 1/4, black around the picture
+always @(posedge clk_pixel) begin
+    reg [23:0] game;
+    game = active ? {mem_portB_rdata[3:0], 4'b0, mem_portB_rdata[7:4], 4'b0, mem_portB_rdata[11:8], 4'b0} // BGR4 to RGB8
+                  : 24'h000000;
+    if (overlay)
+        rgb <= menu_win5 && overlay_color != 15'd0 ? menu_rgb
+             : {2'b0, game[23:18], 2'b0, game[15:10], 2'b0, game[7:2]};
+    else
+        rgb <= game;
 end
 
 // HDMI output.
