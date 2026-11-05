@@ -380,16 +380,20 @@ wire pll_lock_12;
 wire usb_conerr;
 wire [1:0] usb_type;
 pll_12 pll12(.clkin(clk_g), .clkout0(clk12), .lock(pll_lock_12));
+wire [11:0] joy1_usb_12;
 usb_hid_host usb_hid_host (
     .usbclk(clk12), .usbrst_n(pll_lock_12),
     .usb_dm(usb1_dn), .usb_dp(usb1_dp),
-    .game_snes(joy1_usb), .typ(usb_type), .conerr(usb_conerr)
+    .game_snes(joy1_usb_12), .typ(usb_type), .conerr(usb_conerr)
 );
+usb_hid_sync usb_hid_host_sync (.clk(clk_sys), .d(joy1_usb_12), .q(joy1_usb));
+wire [11:0] joy2_usb_12;
 usb_hid_host usb_hid_host2 (
     .usbclk(clk12), .usbrst_n(pll_lock_12),
     .usb_dm(usb2_dn), .usb_dp(usb2_dp),
-    .game_snes(joy2_usb)
+    .game_snes(joy2_usb_12)
 );
+usb_hid_sync usb_hid_host2_sync (.clk(clk_sys), .d(joy2_usb_12), .q(joy2_usb));
 
 assign led = ~{joy1[4:0], usb_type, usb_conerr};
 
