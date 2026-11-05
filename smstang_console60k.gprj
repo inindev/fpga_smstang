@@ -42,6 +42,7 @@
         <File path="src/plla/pll_74.v" type="file.verilog" enable="1"/>
         <File path="src/sdram.v" type="file.verilog" enable="1"/>
         <File path="src/sms2hdmi.sv" type="file.verilog" enable="1"/>
+        <File path="src/audio_cdc.v" type="file.verilog" enable="1"/>
         <File path="src/smstang_top.sv" type="file.verilog" enable="1"/>
         <File path="src/spram.v" type="file.verilog" enable="1"/>
         <File path="src/sprom.v" type="file.verilog" enable="1"/>

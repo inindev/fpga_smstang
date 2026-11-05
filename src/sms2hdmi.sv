@@ -94,14 +94,16 @@ begin
     end
 end
 
-// TODO: need to use async fifo to cross clock domains
-reg [15:0] audio_sample_word [1:0], audio_sample_word0 [1:0];
-always @(posedge clk_pixel) begin
-    audio_sample_word0[0] <= audio_l;
-    audio_sample_word[0] <= audio_sample_word0[0];
-    audio_sample_word0[1] <= audio_r;
-    audio_sample_word[1] <= audio_sample_word0[1];
-end
+// Audio into clk_pixel, all 16 bits from one sample (audio_cdc.v). The mix is signed with
+// silence at 0, so both sides power up at 0.
+wire [15:0] audio_pix_l, audio_pix_r;
+audio_cdc #(.W(16), .INIT(16'd0)) audio_cdc_inst (
+    .clk_src(clk), .in_l(audio_l), .in_r(audio_r),
+    .clk_dst(clk_pixel), .out_l(audio_pix_l), .out_r(audio_pix_r)
+);
+logic [15:0] audio_sample_word [1:0];
+assign audio_sample_word[0] = audio_pix_l;
+assign audio_sample_word[1] = audio_pix_r;
 
 //
 // Video
