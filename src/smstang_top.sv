@@ -337,16 +337,18 @@ dpram #(.widthad_a(15)) nvram_inst
 
 ////////////////// I/O //////////////////
 
+wire [3:0] volume;              // master volume, iosys -> HDMI encoder
 `ifndef VERILATOR
 
 wire overlay;
+wire osd_strip;                 // with overlay: volume bar strip, the game keeps running
 
-// Pause the game while the menu is shown. The pause starts at the end of a divider period
-// (clkd back to 0) and can end at any time while clkd is held there. Not in reset, which
-// needs the clock enables to take effect (power-up and loading).
+// Pause the game while the menu is shown (not the strip). The pause starts at the end of a
+// divider period (clkd back to 0) and can end at any time while clkd is held there. Not in
+// reset, which needs the clock enables to take effect (power-up and loading).
 always @(posedge clk_sys)
 	if (paused | clkd == 29)
-		paused <= overlay & ~reset;
+		paused <= overlay & ~osd_strip & ~reset;
 
 wire [7:0] overlay_x;
 wire [7:0] overlay_y;
@@ -356,7 +358,9 @@ sms2hdmi sms2hdmi_inst (
 	.clk(clk_sys), .resetn(1'b1),
 	.clk_pixel(clk_pixel),.clk_5x_pixel(clk_5x_pixel),
     .ce_pix(ce_pix), .x(x), .y(y), .color(color), .audio_l(audio_l), .audio_r(audio_r),
-    .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
+    .volume(volume),
+    .overlay(overlay), .osd_strip(osd_strip),
+    .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
 	.tmds_clk_n(tmds_clk_n), .tmds_clk_p(tmds_clk_p), .tmds_d_n(tmds_d_n), .tmds_d_p(tmds_d_p)
 );
 
@@ -401,9 +405,10 @@ iosys_bl616 #(.COLOR_LOGO(15'b11111_00000_00000), .FREQ(53_700_000), .CORE_ID(5)
     sys_inst (
     .clk(clk_sys), .hclk(clk_pixel), .resetn(1'b1),
 
-    .overlay(overlay), .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
+    .overlay(overlay), .osd_strip(osd_strip), .overlay_x(overlay_x), .overlay_y(overlay_y), .overlay_color(overlay_color),
     .joy1(joy1_btns | joy1_usb), .joy2(joy2_btns | joy2_usb),
     .hid1(joy1_mcu), .hid2(joy2_mcu),
+    .volume(volume),
     .uart_tx(UART_TXD), .uart_rx(UART_RXD),
 
     .rom_loading(rom_loading), .rom_do(rom_do), .rom_do_valid(rom_do_valid)
